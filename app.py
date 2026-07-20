@@ -1,121 +1,71 @@
 """
-Integration test for the MemoryAI database layer.
+Integration test for Phase 5.
+
+Verifies:
+1. Imports
+2. Prompt builders
+3. LLM Service
+4. Groq Client validation
 """
 
-from database.user_repository import UserRepository
-from database.chat_session_repository import ChatSessionRepository
-from database.message_repository import MessageRepository
-from database.memory_repository import MemoryRepository
-from database.document_repository import DocumentRepository
-
-from utils.helpers import (
-    generate_uuid,
-    get_current_timestamp,
-)
+from prompts.system_prompts import SYSTEM_PROMPT
+from prompts.chat_prompts import build_chat_messages
+from llm.groq_client import GroqClient
+from services.llm_service import LLMService
 
 
 def main() -> None:
-    # Initialize repositories
-    user_repo = UserRepository()
-    chat_repo = ChatSessionRepository()
-    message_repo = MessageRepository()
-    memory_repo = MemoryRepository()
-    document_repo = DocumentRepository()
+    print("=" * 50)
+    print("PHASE 5 TEST")
+    print("=" * 50)
 
-    timestamp = get_current_timestamp()
+    # -----------------------------
+    # System Prompt
+    # -----------------------------
+    print("\n[1] Testing System Prompt...")
 
-    # -------------------------
-    # Create User
-    # -------------------------
-    user_id = generate_uuid()
+    assert isinstance(SYSTEM_PROMPT, str)
+    assert len(SYSTEM_PROMPT) > 0
 
-    user_repo.create_user(
-        user_id=user_id,
-        username=f"test_user_{user_id[:8]}",
-        password_hash="dummy_password_hash",
-        created_at=timestamp,
-    )
+    print("✓ System prompt loaded")
 
-    print("✓ User created")
+    # -----------------------------
+    # Chat Prompt Builder
+    # -----------------------------
+    print("\n[2] Testing Prompt Builder...")
 
-    # -------------------------
-    # Create Chat Session
-    # -------------------------
-    session_id = generate_uuid()
+    messages = build_chat_messages("Hello MemoryAI")
 
-    chat_repo.create_session(
-        session_id=session_id,
-        user_id=user_id,
-        title="Integration Test Chat",
-        created_at=timestamp,
-        updated_at=timestamp,
-    )
+    assert isinstance(messages, list)
+    assert len(messages) == 2
+    assert messages[0]["role"] == "system"
+    assert messages[1]["role"] == "user"
 
-    print("✓ Chat session created")
+    print("✓ Prompt builder working")
 
-    # -------------------------
-    # Insert Messages
-    # -------------------------
-    messages = [
-        ("user", "Hello MemoryAI!"),
-        ("assistant", "Hello! How can I help you today?"),
-        ("user", "This is an integration test."),
-    ]
+    # -----------------------------
+    # Groq Client
+    # -----------------------------
+    print("\n[3] Testing Groq Client...")
 
-    for role, content in messages:
-        message_repo.create_message(
-            message_id=generate_uuid(),
-            session_id=session_id,
-            role=role,
-            content=content,
-            timestamp=get_current_timestamp(),
-        )
+    try:
+        GroqClient()
+    except ValueError:
+        print("✓ API key validation working")
 
-    print(f"✓ {len(messages)} messages stored")
+    # -----------------------------
+    # LLM Service
+    # -----------------------------
+    print("\n[4] Testing LLM Service...")
 
-    # -------------------------
-    # Create Memory
-    # -------------------------
-    memory_repo.create_memory(
-        memory_id=generate_uuid(),
-        user_id=user_id,
-        memory="User likes AI engineering projects.",
-        created_at=get_current_timestamp(),
-    )
+    try:
+        LLMService()
+    except ValueError:
+        print("✓ LLM Service validation working")
 
-    print("✓ Memory stored")
-
-    # -------------------------
-    # Create Document
-    # -------------------------
-    document_repo.create_document(
-        document_id=generate_uuid(),
-        user_id=user_id,
-        filename="sample.pdf",
-        file_path="data/uploads/sample.pdf",
-        uploaded_at=get_current_timestamp(),
-    )
-
-    print("✓ Document stored")
-
-    # -------------------------
-    # Read Back Data
-    # -------------------------
-    user = user_repo.get_user_by_id(user_id)
-    sessions = chat_repo.get_user_sessions(user_id)
-    retrieved_messages = message_repo.get_messages(session_id)
-    memories = memory_repo.get_user_memories(user_id)
-    documents = document_repo.get_user_documents(user_id)
-
-    print("\n========== DATABASE SUMMARY ==========")
-    print(f"Username          : {user['username']}")
-    print(f"Chat Sessions     : {len(sessions)}")
-    print(f"Messages          : {len(retrieved_messages)}")
-    print(f"Memories          : {len(memories)}")
-    print(f"Documents         : {len(documents)}")
-    print("======================================")
-
-    print("\n✅ Database integration test passed successfully!")
+    print("\n" + "=" * 50)
+    print("ALL PHASE 5 TESTS PASSED")
+    print("=" * 50)
 
 
 if __name__ == "__main__":

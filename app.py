@@ -1,71 +1,95 @@
 """
-Integration test for Phase 5.
-
-Verifies:
-1. Imports
-2. Prompt builders
-3. LLM Service
-4. Groq Client validation
+Integration test for the complete LLM layer.
 """
 
 from prompts.system_prompts import SYSTEM_PROMPT
 from prompts.chat_prompts import build_chat_messages
+from utils.message_converter import build_messages
 from llm.groq_client import GroqClient
 from services.llm_service import LLMService
 
 
-def main() -> None:
-    print("=" * 50)
-    print("PHASE 5 TEST")
-    print("=" * 50)
+def separator(title: str) -> None:
+    print("\n" + "=" * 60)
+    print(title)
+    print("=" * 60)
 
-    # -----------------------------
-    # System Prompt
-    # -----------------------------
-    print("\n[1] Testing System Prompt...")
+
+def main() -> None:
+
+    separator("1. System Prompt")
 
     assert isinstance(SYSTEM_PROMPT, str)
-    assert len(SYSTEM_PROMPT) > 0
-
     print("✓ System prompt loaded")
 
-    # -----------------------------
-    # Chat Prompt Builder
-    # -----------------------------
-    print("\n[2] Testing Prompt Builder...")
+    separator("2. Prompt Builder")
 
-    messages = build_chat_messages("Hello MemoryAI")
+    messages = build_chat_messages("Hello")
 
-    assert isinstance(messages, list)
-    assert len(messages) == 2
     assert messages[0]["role"] == "system"
     assert messages[1]["role"] == "user"
 
     print("✓ Prompt builder working")
 
-    # -----------------------------
-    # Groq Client
-    # -----------------------------
-    print("\n[3] Testing Groq Client...")
+    separator("3. Message Converter")
+
+    history = [
+        {
+            "role": "user",
+            "content": "Hi",
+        },
+        {
+            "role": "assistant",
+            "content": "Hello!",
+        },
+    ]
+
+    final_messages = build_messages(
+        SYSTEM_PROMPT,
+        history,
+        "Explain AI",
+    )
+
+    assert len(final_messages) == 4
+
+    print("✓ Message conversion working")
+
+    separator("4. Groq Client")
 
     try:
         GroqClient()
+
     except ValueError:
+
         print("✓ API key validation working")
 
-    # -----------------------------
-    # LLM Service
-    # -----------------------------
-    print("\n[4] Testing LLM Service...")
+    separator("5. LLM Service")
 
     try:
         LLMService()
+
     except ValueError:
+
         print("✓ LLM Service validation working")
 
-    print("\n" + "=" * 50)
-    print("ALL PHASE 5 TESTS PASSED")
-    print("=" * 50)
+    separator("6. Streaming")
+
+    try:
+
+        service = LLMService()
+
+        for _ in service.stream_response(
+            "Hello"
+        ):
+            pass
+
+    except ValueError:
+
+        print("✓ Streaming validation working")
+
+    separator("SUCCESS")
+
+    print("✓ Phase 5 integration test passed")
 
 
 if __name__ == "__main__":

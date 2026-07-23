@@ -15,15 +15,19 @@ class SessionManager:
     USER_ID_KEY = "user_id"
     USERNAME_KEY = "username"
 
+    
     @classmethod
     def login(cls, user_id: str, username: str) -> None:
+        st.session_state["authenticated"] = True
         st.session_state[cls.USER_ID_KEY] = user_id
         st.session_state[cls.USERNAME_KEY] = username
-
+    
     @classmethod
     def logout(cls) -> None:
+        st.session_state["authenticated"] = False
         st.session_state.pop(cls.USER_ID_KEY, None)
         st.session_state.pop(cls.USERNAME_KEY, None)
+
 
     @classmethod
     def is_authenticated(cls) -> bool:

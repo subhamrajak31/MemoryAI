@@ -9,6 +9,10 @@ import streamlit as st
 from config.constants import APP_NAME
 from services.authentication_service import UserAuthenticationService
 from services.session_manager import SessionManager
+from database.chat_session_repository import ChatSessionRepository
+from utils.helpers import generate_uuid, get_current_timestamp
+from config.constants import DEFAULT_CHAT_TITLE
+from database.message_repository import MessageRepository
 
 
 def initialize_app_state() -> None:
@@ -26,6 +30,12 @@ def initialize_app_state() -> None:
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+
+    if "chat_messages" not in st.session_state:
+            st.session_state.chat_messages = []
+
+    if "current_chat_session_id" not in st.session_state:
+        st.session_state.current_chat_session_id = None
 
 
 def show_login_page() -> None:
@@ -96,20 +106,86 @@ def show_register_page() -> None:
 
 def show_home_page() -> None:
     """
-    Display protected home page.
+    Displays the authenticated chat interface.
     """
 
-    st.title(APP_NAME)
+    from services.chat_service import ChatService
+    chat_service = ChatService()
 
-    st.success(f"Welcome, {st.session_state.username}!")
+    # ==========================
+    # Sidebar
+    # ==========================
 
-    st.write(f"User ID: {st.session_state.user_id}")
+    st.sidebar.title(APP_NAME)
+
+    st.sidebar.button(
+        "➕ New Chat",
+        disabled=True,
+    )
+
+    st.sidebar.divider()
+
+    st.sidebar.info("No chats yet.")
+
+    st.sidebar.divider()
+
+    if st.sidebar.button("Logout"):
+        SessionManager.logout()
+        st.rerun()
+
+    # ==========================
+    # Main Area
+    # ==========================
+
+    st.title("MemoryAI Chat")
+
+    st.write(
+        f"Welcome, **{SessionManager.get_username()}**"
+    )
 
     st.divider()
 
-    if st.button("Logout"):
-        SessionManager.logout()
+    # ==========================
+    # Display chat history
+    # ==========================
+
+    for message in st.session_state.chat_messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    # ==========================
+    # Chat Input
+    # ==========================
+
+    prompt = st.chat_input("Ask MemoryAI...")
+
+    if prompt:
+
+        # Create chat session only once
+        if st.session_state.current_chat_session_id is None:
+
+            timestamp = get_current_timestamp()
+
+            session_id = chat_service.create_chat_session(
+            SessionManager.get_user_id(),
+            )
+
+            st.session_state.current_chat_session_id = session_id
+
+        chat_service.save_user_message(
+        session_id=st.session_state.current_chat_session_id,
+        content=prompt,
+        )
+
+        st.session_state.chat_messages.append(
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        )
+
         st.rerun()
+    
 
 
 def main() -> None:

@@ -164,8 +164,6 @@ def show_home_page() -> None:
         # Create chat session only once
         if st.session_state.current_chat_session_id is None:
 
-            timestamp = get_current_timestamp()
-
             session_id = chat_service.create_chat_session(
             SessionManager.get_user_id(),
             )
@@ -173,8 +171,20 @@ def show_home_page() -> None:
             st.session_state.current_chat_session_id = session_id
 
         chat_service.save_user_message(
-        session_id=st.session_state.current_chat_session_id,
-        content=prompt,
+            session_id=st.session_state.current_chat_session_id,
+            content=prompt,
+        )
+
+        conversation = st.session_state.chat_messages
+
+        response = chat_service.generate_ai_response(
+            conversation=conversation,
+            user_message=prompt,
+        )
+
+        chat_service.save_assistant_message(
+            session_id=st.session_state.current_chat_session_id,
+            content=response,
         )
 
         st.session_state.chat_messages.append(
@@ -184,8 +194,15 @@ def show_home_page() -> None:
             }
         )
 
+        st.session_state.chat_messages.append(
+            {
+                "role": "assistant",
+                "content": response,
+            }
+        )
+
         st.rerun()
-    
+
 
 
 def main() -> None:

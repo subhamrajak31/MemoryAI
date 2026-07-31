@@ -8,6 +8,10 @@ from config.constants import DEFAULT_CHAT_TITLE
 from database.chat_session_repository import ChatSessionRepository
 from database.message_repository import MessageRepository
 from utils.helpers import generate_uuid, get_current_timestamp
+from services.llm_service import LLMService
+from prompts.system_prompts import SYSTEM_PROMPT
+from utils.message_converter import build_messages
+from services.llm_service import LLMService
 
 
 class ChatService:
@@ -22,6 +26,7 @@ class ChatService:
     def __init__(self) -> None:
         self.chat_session_repository = ChatSessionRepository()
         self.message_repository = MessageRepository()
+        self.llm_service = LLMService()
 
     def create_chat_session(
         self,
@@ -67,6 +72,46 @@ class ChatService:
             message_id=generate_uuid(),
             session_id=session_id,
             role="user",
+            content=content,
+            timestamp=get_current_timestamp(),
+        )
+    def generate_ai_response(
+        self,
+        conversation: list[dict[str, str]],
+        user_message: str,
+    ) -> str:
+        """
+        Generate an AI response.
+
+        Args:
+            conversation: Previous chat history.
+            user_message: Latest user message.
+
+        Returns:
+            AI response.
+        """
+
+        messages = build_messages(
+            system_prompt=SYSTEM_PROMPT,
+            conversation=conversation,
+            user_message=user_message,
+        )
+
+        return self.llm_service.generate_response(messages)
+
+    def save_assistant_message(
+        self,
+        session_id: str,
+        content: str,
+    ) -> None:
+        """
+        Save an assistant response.
+        """
+    
+        self.message_repository.create_message(
+            message_id=generate_uuid(),
+            session_id=session_id,
+            role="assistant",
             content=content,
             timestamp=get_current_timestamp(),
         )

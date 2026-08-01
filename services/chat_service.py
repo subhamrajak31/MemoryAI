@@ -115,3 +115,50 @@ class ChatService:
             content=content,
             timestamp=get_current_timestamp(),
         )
+
+    def get_user_sessions(
+        self,
+        user_id: str,
+    ) -> list:
+        """
+        Returns all chat sessions for a user.
+
+        Args:
+            user_id: User ID.
+
+        Returns:
+            List of chat sessions.
+        """
+
+        return self.chat_session_repository.get_user_sessions(user_id)
+
+
+    def get_session_messages(
+        self,
+        session_id: str,
+    ) -> list:
+        """
+        Returns all messages for a chat session.
+
+        Args:
+            session_id: Chat session ID.
+
+        Returns:
+            List of messages.
+        """
+
+        return self.message_repository.get_messages(session_id)
+    
+    def update_chat_title(
+        self,
+        session_id: str,
+        title: str,
+    ) -> None:
+        """
+        Updates a chat session title.
+        """
+
+        self.chat_session_repository.update_title(
+            session_id=session_id,
+            title=title,
+        )

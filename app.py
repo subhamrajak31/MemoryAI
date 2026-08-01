@@ -112,20 +112,62 @@ def show_home_page() -> None:
     from services.chat_service import ChatService
     chat_service = ChatService()
 
+    if (
+        st.session_state.current_chat_session_id is not None
+        and not st.session_state.chat_messages
+    ):
+        messages = chat_service.get_session_messages(
+            st.session_state.current_chat_session_id
+        )
+
+        st.session_state.chat_messages = [
+            {
+                "role": message["role"],
+                "content": message["content"],
+            }
+            for message in messages
+        ]
+
     # ==========================
     # Sidebar
     # ==========================
 
     st.sidebar.title(APP_NAME)
 
-    st.sidebar.button(
-        "➕ New Chat",
-        disabled=True,
-    )
+    if st.sidebar.button("➕ New Chat"):
+        st.session_state.current_chat_session_id = None
+        st.session_state.chat_messages = []
+        st.rerun()
 
     st.sidebar.divider()
 
-    st.sidebar.info("No chats yet.")
+    sessions = chat_service.get_user_sessions(
+        SessionManager.get_user_id()
+    )
+
+    if sessions:
+        for session in sessions:
+            if st.sidebar.button(
+                session["title"],
+                key=session["id"],
+            ):
+                st.session_state.current_chat_session_id = session["id"]
+
+                messages = chat_service.get_session_messages(
+                    session["id"]
+                )
+
+                st.session_state.chat_messages = [
+                    {
+                        "role": message["role"],
+                        "content": message["content"],
+                    }
+                    for message in messages
+                ]
+
+                st.rerun()
+    else:
+        st.sidebar.info("No chats yet.")
 
     st.sidebar.divider()
 
@@ -133,15 +175,21 @@ def show_home_page() -> None:
         SessionManager.logout()
         st.rerun()
 
-    # ==========================
-    # Main Area
-    # ==========================
+        st.sidebar.divider()
 
-    st.title("MemoryAI Chat")
+        if st.sidebar.button("Logout"):
+            SessionManager.logout()
+            st.rerun()
 
-    st.write(
-        f"Welcome, **{SessionManager.get_username()}**"
-    )
+        # ==========================
+        # Main Area
+        # ==========================
+
+        st.title("MemoryAI Chat")
+
+        st.write(
+            f"Welcome, **{SessionManager.get_username()}**"
+        )
 
     st.divider()
 
@@ -160,47 +208,71 @@ def show_home_page() -> None:
     prompt = st.chat_input("Ask MemoryAI...")
 
     if prompt:
-
+        
         # Create chat session only once
         if st.session_state.current_chat_session_id is None:
-
+        
             session_id = chat_service.create_chat_session(
-            SessionManager.get_user_id(),
+                SessionManager.get_user_id(),
             )
-
+    
             st.session_state.current_chat_session_id = session_id
-
+    
         chat_service.save_user_message(
             session_id=st.session_state.current_chat_session_id,
             content=prompt,
         )
-
+    
+        sessions = chat_service.get_user_sessions(
+            SessionManager.get_user_id()
+        )
+    
+        current_session = next(
+            (
+                session
+                for session in sessions
+                if session["id"] == st.session_state.current_chat_session_id
+            ),
+            None,
+        )
+    
+        if (
+            current_session is not None
+            and current_session["title"] == DEFAULT_CHAT_TITLE
+        ):
+            title = prompt.strip()[:40]
+    
+            chat_service.update_chat_title(
+                session_id=st.session_state.current_chat_session_id,
+                title=title,
+            )
+    
         conversation = st.session_state.chat_messages
-
+    
         response = chat_service.generate_ai_response(
             conversation=conversation,
             user_message=prompt,
         )
-
+    
         chat_service.save_assistant_message(
             session_id=st.session_state.current_chat_session_id,
             content=response,
         )
-
+    
         st.session_state.chat_messages.append(
             {
                 "role": "user",
                 "content": prompt,
             }
         )
-
+    
         st.session_state.chat_messages.append(
             {
                 "role": "assistant",
                 "content": response,
             }
         )
-
+    
         st.rerun()
 
 

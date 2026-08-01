@@ -17,7 +17,7 @@ EXPORTS_DIR = DATA_DIR / "exports"
 # Logs directory
 LOGS_DIR = BASE_DIR / "logs"
 # LLM Configuration
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+MODEL_NAME = os.getenv("MODEL_NAME", "gemini-2.5-flash")
 TEMPERATURE = float(os.getenv("TEMPERATURE", 0.7))
 MAX_TOKENS = int(os.getenv("MAX_TOKENS", 1024))

@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Iterator
 
 from llm.base_llm import BaseLLM
-from llm.groq_client import GroqClient
+from llm.gemini_client import GeminiClient
 
 
 class LLMService:
@@ -21,9 +21,9 @@ class LLMService:
 
         Args:
             llm: Optional LLM implementation. If not provided,
-                 GroqClient is used.
+                 GeminiClient is used.
         """
-        self.llm = llm or GroqClient()
+        self.llm = llm or GeminiClient()
 
     def generate_response(
       self,

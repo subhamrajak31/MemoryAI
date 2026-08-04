@@ -249,23 +249,27 @@ def show_home_page() -> None:
     
         conversation = st.session_state.chat_messages
     
-        response = chat_service.generate_ai_response(
-            conversation=conversation,
-            user_message=prompt,
-        )
-    
+        with st.chat_message("assistant"):
+
+            response = st.write_stream(
+                chat_service.stream_ai_response(
+                    conversation=conversation,
+                    user_message=prompt,
+                )
+            )
+
         chat_service.save_assistant_message(
             session_id=st.session_state.current_chat_session_id,
             content=response,
         )
-    
+
         st.session_state.chat_messages.append(
-            {
-                "role": "user",
-                "content": prompt,
-            }
-        )
-    
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            )
+
         st.session_state.chat_messages.append(
             {
                 "role": "assistant",

@@ -98,6 +98,22 @@ class ChatService:
         )
 
         return self.llm_service.generate_response(messages)
+    def stream_ai_response(
+        self,
+        conversation: list[dict[str, str]],
+        user_message: str,
+    ):
+        """
+        Stream an AI response.
+        """
+    
+        messages = build_messages(
+            system_prompt=SYSTEM_PROMPT,
+            conversation=conversation,
+            user_message=user_message,
+        )
+    
+        yield from self.llm_service.stream_response(messages)
 
     def save_assistant_message(
         self,

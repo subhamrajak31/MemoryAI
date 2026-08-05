@@ -4,16 +4,4 @@ service = MemoryService()
 
 user_id = "test-user"
 
-print(
-    service.store_memory(
-        user_id,
-        "I prefer Python",
-    )
-)
-
-print(
-    service.store_memory(
-        user_id,
-        "I prefer Python",
-    )
-)
+print(service.retrieve_memories(user_id))

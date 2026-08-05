@@ -63,3 +63,18 @@ class MemoryRepository(BaseRepository):
         with self.db.get_connection() as conn:
             conn.execute(query, (memory_id,))
             conn.commit()
+
+    def memory_exists(
+        self,
+        user_id: str,
+        memory: str,
+    ) -> bool:
+        query = """
+            SELECT 1
+            FROM memory
+            WHERE user_id = ?
+              AND LOWER(memory) = LOWER(?)
+            LIMIT 1
+        """
+    
+        return self.fetch_one(query, (user_id, memory)) is not None

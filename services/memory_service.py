@@ -81,34 +81,40 @@ class MemoryService:
     ) -> bool:
         """
         Store a memory if it does not already exist.
-    
-        Returns True if stored, False if skipped.
+
+        Returns True if stored, False otherwise.
         """
-    
+
         memory = memory.strip()
-    
+
         if not memory:
             return False
-    
-        existing_memories = self.memory_repository.get_user_memories(user_id)
-    
-        normalized_memory = memory.casefold()
-    
-        for existing in existing_memories:
-            if existing["memory"].casefold() == normalized_memory:
-                return False
-    
+
+        if self.memory_repository.memory_exists(user_id, memory):
+            return False
+
         self.memory_repository.create_memory(
             user_id=user_id,
             memory=memory,
             created_at=get_current_timestamp(),
         )
-    
+
         return True
 
-    def retrieve_memories(self, *args, **kwargs):
-        """Retrieve memories for a user."""
-        raise NotImplementedError
+    def retrieve_memories(
+        self,
+        user_id: str,
+    ) -> list[str]:
+        """
+        Retrieve all stored memories for a user.
+        """
+    
+        rows = self.memory_repository.get_user_memories(user_id)
+    
+        return [
+            row["memory"]
+            for row in rows
+        ]
 
     def inject_memories(self, *args, **kwargs):
         """Prepare memories for prompt injection."""

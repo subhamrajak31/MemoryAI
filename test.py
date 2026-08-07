@@ -1,21 +1,11 @@
-from utils.message_converter import build_messages
+from database.sqlite_manager import SQLiteManager
 
-# messages = build_messages(
-#     system_prompt="You are MemoryAI.",
-#     conversation=[],
-#     user_message="What should I learn?",
-#     memories=[
-#         "User prefers Python.",
-#         "User is building MemoryAI.",
-#     ],
-# )
+db = SQLiteManager()
 
-messages = build_messages(
-    "You are MemoryAI.",
-    [],
-    "Hello",
-)
+with db.get_connection() as conn:
+    rows = conn.execute(
+        "SELECT id, username FROM users"
+    ).fetchall()
 
-for message in messages:
-    print(message)
-
+for row in rows:
+    print(row)

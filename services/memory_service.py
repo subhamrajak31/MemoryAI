@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from database.memory_repository import MemoryRepository
 import re
-from utils.helpers import get_current_timestamp
+from utils.helpers import generate_uuid, get_current_timestamp
 
 
 class MemoryService:
@@ -82,7 +82,8 @@ class MemoryService:
         """
         Store a memory if it does not already exist.
 
-        Returns True if stored, False otherwise.
+        Returns:
+            True if the memory was stored, otherwise False.
         """
 
         memory = memory.strip()
@@ -93,10 +94,14 @@ class MemoryService:
         if self.memory_repository.memory_exists(user_id, memory):
             return False
 
+        memory_id = generate_uuid()
+        created_at = get_current_timestamp()
+
         self.memory_repository.create_memory(
+            memory_id=memory_id,
             user_id=user_id,
             memory=memory,
-            created_at=get_current_timestamp(),
+            created_at=created_at,
         )
 
         return True
@@ -104,18 +109,21 @@ class MemoryService:
     def retrieve_memories(
         self,
         user_id: str,
+        limit: int = 10,
     ) -> list[str]:
         """
-        Retrieve all stored memories for a user.
+        Retrieve the most recent memories for a user.
         """
-    
+
         rows = self.memory_repository.get_user_memories(user_id)
-    
-        return [
+
+        memories = [
             row["memory"]
             for row in rows
         ]
 
+        return memories[-limit:]
+    
     def inject_memories(self, *args, **kwargs):
         """Prepare memories for prompt injection."""
         raise NotImplementedError
@@ -127,3 +135,73 @@ class MemoryService:
     def delete_memory(self, *args, **kwargs):
         """Delete a stored memory."""
         raise NotImplementedError
+
+    def is_valid_memory(self, memory: str) -> bool:
+        """
+        Determine whether a candidate memory is suitable
+        for long-term storage.
+        """
+
+        memory = memory.strip()
+
+        if not memory:
+            return False
+
+        normalized = memory.casefold()
+
+        # Ignore questions.
+        if "?" in memory:
+            return False
+
+        # Ignore common conversational messages.
+        ignored_phrases = {
+            "hello",
+            "hi",
+            "hey",
+            "thanks",
+            "thank you",
+            "okay",
+            "ok",
+            "bye",
+            "goodbye",
+        }
+
+        if normalized.rstrip(".!") in ignored_phrases:
+            return False
+
+        # Ignore obvious temporary activities.
+        temporary_phrases = (
+            "i am going to ",
+            "i'm going to ",
+            "i am currently ",
+            "i'm currently ",
+            "i am doing ",
+            "i'm doing ",
+            "i am solving ",
+            "i'm solving ",
+        )
+
+        if normalized.startswith(temporary_phrases):
+            return False
+
+        return True
+
+    def process_memory(
+            self,
+            user_id: str,
+            user_message: str,
+        ) -> None:
+            """
+            Extract, validate, and store long-term memories.
+            """
+        
+            memories = self.extract_memories(user_message)
+        
+            for memory in memories:
+                if not self.is_valid_memory(memory):
+                    continue
+                
+                self.store_memory(
+                    user_id=user_id,
+                    memory=memory,
+                )

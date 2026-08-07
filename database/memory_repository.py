@@ -77,4 +77,13 @@ class MemoryRepository(BaseRepository):
             LIMIT 1
         """
     
-        return self.fetch_one(query, (user_id, memory)) is not None
+        with self.db.get_connection() as conn:
+            row = conn.execute(
+                query,
+                (
+                    user_id,
+                    memory,
+                ),
+            ).fetchone()
+    
+        return row is not None

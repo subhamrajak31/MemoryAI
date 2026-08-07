@@ -133,14 +133,15 @@ class ChatService:
     
     def stream_ai_response(
         self,
-        user_id : str,
+        user_id: str,
         conversation: list[dict[str, str]],
         user_message: str,
     ):
-        """
-        Stream an AI response.
-        """
-    
+        self.memory_service.process_memory(
+            user_id=user_id,
+            user_message=user_message,
+        )
+
         memories = self.memory_service.retrieve_memories(user_id)
 
         messages = build_messages(
@@ -151,7 +152,7 @@ class ChatService:
         )
 
         yield from self.llm_service.stream_response(messages)
-
+        
     def save_assistant_message(
         self,
         session_id: str,
@@ -215,3 +216,5 @@ class ChatService:
             session_id=session_id,
             title=title,
         )
+
+    

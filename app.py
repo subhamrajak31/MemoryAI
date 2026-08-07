@@ -250,9 +250,10 @@ def show_home_page() -> None:
         conversation = st.session_state.chat_messages
     
         with st.chat_message("assistant"):
-
+            user_id = st.session_state.user_id
             response = st.write_stream(
                 chat_service.stream_ai_response(
+                    user_id=user_id,
                     conversation=conversation,
                     user_message=prompt,
                 )

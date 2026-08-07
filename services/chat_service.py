@@ -12,6 +12,7 @@ from services.llm_service import LLMService
 from prompts.system_prompts import SYSTEM_PROMPT
 from utils.message_converter import build_messages
 from services.llm_service import LLMService
+from services.memory_service import MemoryService
 
 
 class ChatService:
@@ -23,10 +24,37 @@ class ChatService:
     - Save user messages.
     """
 
-    def __init__(self) -> None:
-        self.chat_session_repository = ChatSessionRepository()
-        self.message_repository = MessageRepository()
-        self.llm_service = LLMService()
+    def __init__(
+        self,
+        chat_session_repository: ChatSessionRepository | None = None,
+        message_repository: MessageRepository | None = None,
+        llm_service: LLMService | None = None,
+        memory_service: MemoryService | None = None,
+    ) -> None:
+
+        self.chat_session_repository = (
+            chat_session_repository
+            if chat_session_repository is not None
+            else ChatSessionRepository()
+        )
+
+        self.message_repository = (
+            message_repository
+            if message_repository is not None
+            else MessageRepository()
+        )
+
+        self.llm_service = (
+            llm_service
+            if llm_service is not None
+            else LLMService()
+        )
+
+        self.memory_service = (
+            memory_service
+            if memory_service is not None
+            else MemoryService()
+        )
 
     def create_chat_session(
         self,
@@ -77,6 +105,7 @@ class ChatService:
         )
     def generate_ai_response(
         self,
+        user_id,
         conversation: list[dict[str, str]],
         user_message: str,
     ) -> str:
@@ -91,15 +120,20 @@ class ChatService:
             AI response.
         """
 
+        memories = self.memory_service.retrieve_memories(user_id)
+
         messages = build_messages(
             system_prompt=SYSTEM_PROMPT,
             conversation=conversation,
             user_message=user_message,
+            memories=memories,
         )
 
         return self.llm_service.generate_response(messages)
+    
     def stream_ai_response(
         self,
+        user_id : str,
         conversation: list[dict[str, str]],
         user_message: str,
     ):
@@ -107,12 +141,15 @@ class ChatService:
         Stream an AI response.
         """
     
+        memories = self.memory_service.retrieve_memories(user_id)
+
         messages = build_messages(
             system_prompt=SYSTEM_PROMPT,
             conversation=conversation,
             user_message=user_message,
+            memories=memories,
         )
-    
+
         yield from self.llm_service.stream_response(messages)
 
     def save_assistant_message(

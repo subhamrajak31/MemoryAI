@@ -10,6 +10,7 @@ def build_messages(
     system_prompt: str,
     conversation: list[dict[str, str]],
     user_message: str,
+    memories: list[str] | None = None,
 ) -> list[dict[str, str]]:
     """
     Build the final message list for the LLM.
@@ -24,8 +25,11 @@ def build_messages(
         user_message:
             Latest user message.
 
+        memories:
+            Long-term memories associated with the user.
+
     Returns:
-            Messages formatted for the LLM.
+        Messages formatted for the LLM.
     """
 
     messages = [
@@ -34,6 +38,19 @@ def build_messages(
             "content": system_prompt,
         }
     ]
+
+    if memories:
+        memory_context = (
+            "Long-term memory about the user:\n"
+            + "\n".join(f"- {memory}" for memory in memories)
+        )
+
+        messages.append(
+            {
+                "role": "system",
+                "content": memory_context,
+            }
+        )
 
     messages.extend(conversation)
 

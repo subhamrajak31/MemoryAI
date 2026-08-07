@@ -1,7 +1,21 @@
-from services.memory_service import MemoryService
+from utils.message_converter import build_messages
 
-service = MemoryService()
+# messages = build_messages(
+#     system_prompt="You are MemoryAI.",
+#     conversation=[],
+#     user_message="What should I learn?",
+#     memories=[
+#         "User prefers Python.",
+#         "User is building MemoryAI.",
+#     ],
+# )
 
-user_id = "test-user"
+messages = build_messages(
+    "You are MemoryAI.",
+    [],
+    "Hello",
+)
 
-print(service.retrieve_memories(user_id))
+for message in messages:
+    print(message)
+

@@ -4,9 +4,12 @@ Business logic for long-term memory management.
 
 from __future__ import annotations
 
-from database.memory_repository import MemoryRepository
 import re
+
+from database.memory_repository import MemoryRepository
+from memory.memory_store import VectorMemoryStore
 from utils.helpers import generate_uuid, get_current_timestamp
+from utils.logger import logger
 
 
 class MemoryService:
@@ -15,35 +18,32 @@ class MemoryService:
 
     This service is responsible for:
     - extracting memories
-    - storing memories
-    - retrieving memories
-    - updating memories
-    - deleting memories
-    - injecting memories into prompts
-
-    SQL operations are delegated to MemoryRepository.
+    - storing memories in SQLite and ChromaDB
+    - semantically retrieving memories
+    - validating candidate memories
     """
 
     def __init__(
         self,
         memory_repository: MemoryRepository | None = None,
+        vector_memory_store: VectorMemoryStore | None = None,
     ) -> None:
         self.memory_repository = (
             memory_repository
             if memory_repository is not None
             else MemoryRepository()
         )
+        self.vector_memory_store = (
+            vector_memory_store
+            if vector_memory_store is not None
+            else VectorMemoryStore()
+        )
 
     def extract_memories(self, message: str) -> list[str]:
         """
-        Extract candidate long-term memories from a user message.
-
-        This implementation uses deterministic pattern matching.
-        Database storage is handled separately.
+        Extract candidate long-term memories from a user message using pattern matching.
         """
-
         text = message.strip()
-
         memories: list[str] = []
 
         patterns = [
@@ -65,10 +65,8 @@ class MemoryService:
 
         for pattern in patterns:
             match = re.search(pattern, text, flags=re.IGNORECASE)
-
             if match:
                 memory = match.group(0).strip()
-
                 if memory not in memories:
                     memories.append(memory)
 
@@ -80,12 +78,8 @@ class MemoryService:
         memory: str,
     ) -> bool:
         """
-        Store a memory if it does not already exist.
-
-        Returns:
-            True if the memory was stored, otherwise False.
+        Store a memory in SQLite and ChromaDB if it does not already exist.
         """
-
         memory = memory.strip()
 
         if not memory:
@@ -97,6 +91,7 @@ class MemoryService:
         memory_id = generate_uuid()
         created_at = get_current_timestamp()
 
+        # 1. Primary relational storage in SQLite
         self.memory_repository.create_memory(
             memory_id=memory_id,
             user_id=user_id,
@@ -104,44 +99,57 @@ class MemoryService:
             created_at=created_at,
         )
 
+        # 2. Vector indexing in ChromaDB
+        try:
+            self.vector_memory_store.add_memory(
+                user_id=user_id,
+                memory_id=memory_id,
+                text=memory,
+            )
+        except Exception as error:
+            logger.exception(
+                "Failed to index memory ID %s in vector store: %s",
+                memory_id,
+                error,
+            )
+
         return True
 
     def retrieve_memories(
         self,
         user_id: str,
-        limit: int = 10,
+        query: str | None = None,
+        limit: int = 5,
     ) -> list[str]:
         """
-        Retrieve the most recent memories for a user.
+        Retrieve memories for a user. Performs semantic vector search if query is provided,
+        otherwise falls back to SQLite recency.
         """
+        if query:
+            try:
+                semantic_memories = self.vector_memory_store.search_memories(
+                    user_id=user_id,
+                    query=query,
+                    top_k=limit,
+                )
+                if semantic_memories:
+                    return semantic_memories
+            except Exception as error:
+                logger.exception(
+                    "Semantic search failed for user %s, falling back to SQLite: %s",
+                    user_id,
+                    error,
+                )
 
+        # Fallback to recency-ordered SQLite retrieval
         rows = self.memory_repository.get_user_memories(user_id)
-
-        memories = [
-            row["memory"]
-            for row in rows
-        ]
-
+        memories = [row["memory"] for row in rows]
         return memories[-limit:]
-    
-    def inject_memories(self, *args, **kwargs):
-        """Prepare memories for prompt injection."""
-        raise NotImplementedError
-
-    def update_memory(self, *args, **kwargs):
-        """Update an existing memory."""
-        raise NotImplementedError
-
-    def delete_memory(self, *args, **kwargs):
-        """Delete a stored memory."""
-        raise NotImplementedError
 
     def is_valid_memory(self, memory: str) -> bool:
         """
-        Determine whether a candidate memory is suitable
-        for long-term storage.
+        Determine whether a candidate memory is suitable for long-term storage.
         """
-
         memory = memory.strip()
 
         if not memory:
@@ -149,11 +157,9 @@ class MemoryService:
 
         normalized = memory.casefold()
 
-        # Ignore questions.
         if "?" in memory:
             return False
 
-        # Ignore common conversational messages.
         ignored_phrases = {
             "hello",
             "hi",
@@ -169,7 +175,6 @@ class MemoryService:
         if normalized.rstrip(".!") in ignored_phrases:
             return False
 
-        # Ignore obvious temporary activities.
         temporary_phrases = (
             "i am going to ",
             "i'm going to ",
@@ -187,21 +192,20 @@ class MemoryService:
         return True
 
     def process_memory(
-            self,
-            user_id: str,
-            user_message: str,
-        ) -> None:
-            """
-            Extract, validate, and store long-term memories.
-            """
-        
-            memories = self.extract_memories(user_message)
-        
-            for memory in memories:
-                if not self.is_valid_memory(memory):
-                    continue
-                
-                self.store_memory(
-                    user_id=user_id,
-                    memory=memory,
-                )
+        self,
+        user_id: str,
+        user_message: str,
+    ) -> None:
+        """
+        Extract, validate, and store long-term memories.
+        """
+        memories = self.extract_memories(user_message)
+
+        for memory in memories:
+            if not self.is_valid_memory(memory):
+                continue
+
+            self.store_memory(
+                user_id=user_id,
+                memory=memory,
+            )

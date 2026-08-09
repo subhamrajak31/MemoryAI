@@ -1,11 +1,15 @@
-from database.sqlite_manager import SQLiteManager
+from google import genai
+from config.settings import GEMINI_API_KEY
+from memory.memory_store import VectorMemoryStore
 
-db = SQLiteManager()
+# 1. List available embedding models on your API key
+client = genai.Client(api_key=GEMINI_API_KEY)
+print("Available models on key:")
+for m in client.models.list():
+    if "embed" in m.name.lower():
+        print(" -", m.name)
 
-with db.get_connection() as conn:
-    rows = conn.execute(
-        "SELECT id, username FROM users"
-    ).fetchall()
-
-for row in rows:
-    print(row)
+# 2. Test VectorMemoryStore embedding generation
+store = VectorMemoryStore()
+vector = store._generate_embedding("Testing Gemini embedding generation")
+print("Successfully generated vector of length:", len(vector))

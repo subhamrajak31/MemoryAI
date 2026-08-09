@@ -171,6 +171,28 @@ def show_home_page() -> None:
 
     st.sidebar.divider()
 
+    with st.sidebar.expander("🧠 Stored Long-Term Memories"):
+        user_memories = chat_service.memory_service.get_all_user_memories(
+            SessionManager.get_user_id()
+        )
+
+        if user_memories:
+            for mem in user_memories:
+                col1, col2 = st.columns([0.8, 0.2])
+                with col1:
+                    st.caption(f"• {mem['memory']}")
+                with col2:
+                    if st.button("🗑️", key=f"del_{mem['id']}"):
+                        chat_service.memory_service.delete_memory(
+                            user_id=SessionManager.get_user_id(),
+                            memory_id=mem["id"],
+                        )
+                        st.toast("Memory deleted!")
+                        st.rerun()
+        else:
+            st.caption("No long-term memories saved yet.")
+    st.sidebar.divider()
+
     if st.sidebar.button("Logout"):
         SessionManager.logout()
         st.rerun()

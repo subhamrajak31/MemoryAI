@@ -13,3 +13,4 @@ logs/
 
 # Database (optional for now)
 data/database/*.db
+repomix-output.xml

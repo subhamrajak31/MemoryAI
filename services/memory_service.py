@@ -209,3 +209,35 @@ class MemoryService:
                 user_id=user_id,
                 memory=memory,
             )
+
+    def get_all_user_memories(self, user_id: str) -> list[dict[str, str]]:
+        """
+        Retrieve all stored memory records for a user formatted for UI display.
+        """
+        rows = self.memory_repository.get_user_memories(user_id)
+        return [
+            {
+                "id": row["id"],
+                "memory": row["memory"],
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
+
+    def delete_memory(self, user_id: str, memory_id: str) -> None:
+        """
+        Delete a memory record from both SQLite and ChromaDB vector store.
+        """
+        # 1. Delete from SQLite relational storage
+        self.memory_repository.delete_memory(memory_id)
+
+        # 2. Delete from ChromaDB vector index
+        try:
+            self.vector_memory_store.delete_memory(memory_id)
+            logger.info("Memory ID %s purged from vector store.", memory_id)
+        except Exception as error:
+            logger.exception(
+                "Failed to delete memory ID %s from vector store: %s",
+                memory_id,
+                error,
+            )

@@ -10,6 +10,7 @@ from database.message_repository import MessageRepository
 from prompts.system_prompts import SYSTEM_PROMPT
 from services.llm_service import LLMService
 from services.memory_service import MemoryService
+from services.rag_service import RAGService
 from utils.helpers import generate_uuid, get_current_timestamp
 from utils.message_converter import build_messages
 
@@ -25,6 +26,7 @@ class ChatService:
         message_repository: MessageRepository | None = None,
         llm_service: LLMService | None = None,
         memory_service: MemoryService | None = None,
+        rag_service: RAGService | None = None,
     ) -> None:
 
         self.chat_session_repository = (
@@ -49,6 +51,12 @@ class ChatService:
             memory_service
             if memory_service is not None
             else MemoryService()
+        )
+
+        self.rag_service = (
+            rag_service
+            if rag_service is not None
+            else RAGService()
         )
 
     def create_chat_session(
@@ -93,11 +101,18 @@ class ChatService:
             limit=5,
         )
 
+        doc_context = self.rag_service.retrieve_context(
+            user_id=user_id,
+            query=user_message,
+            top_k=4,
+        )
+
         messages = build_messages(
             system_prompt=SYSTEM_PROMPT,
             conversation=conversation,
             user_message=user_message,
             memories=memories,
+            doc_context=doc_context,
         )
 
         return self.llm_service.generate_response(messages)
@@ -119,11 +134,18 @@ class ChatService:
             limit=5,
         )
 
+        doc_context = self.rag_service.retrieve_context(
+            user_id=user_id,
+            query=user_message,
+            top_k=4,
+        )
+
         messages = build_messages(
             system_prompt=SYSTEM_PROMPT,
             conversation=conversation,
             user_message=user_message,
             memories=memories,
+            doc_context=doc_context,
         )
 
         yield from self.llm_service.stream_response(messages)

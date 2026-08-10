@@ -1,15 +1,12 @@
-from google import genai
-from config.settings import GEMINI_API_KEY
-from memory.memory_store import VectorMemoryStore
+from utils.message_converter import build_messages
 
-# 1. List available embedding models on your API key
-client = genai.Client(api_key=GEMINI_API_KEY)
-print("Available models on key:")
-for m in client.models.list():
-    if "embed" in m.name.lower():
-        print(" -", m.name)
+messages = build_messages(
+    system_prompt="You are MemoryAI.",
+    conversation=[],
+    user_message="Summarize my document.",
+    memories=["User prefers concise summaries."],
+    doc_context=["Chunk 1 content from PDF file..."],
+)
 
-# 2. Test VectorMemoryStore embedding generation
-store = VectorMemoryStore()
-vector = store._generate_embedding("Testing Gemini embedding generation")
-print("Successfully generated vector of length:", len(vector))
+for msg in messages:
+    print(f"[{msg['role'].upper()}]\n{msg['content']}\n")

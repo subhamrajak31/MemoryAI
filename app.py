@@ -104,6 +104,10 @@ def show_register_page() -> None:
             st.error(str(exc))
 
 
+from config.settings import UPLOADS_DIR
+from utils.helpers import sanitize_filename
+
+
 def show_home_page() -> None:
     """
     Displays the authenticated chat interface.
@@ -141,6 +145,7 @@ def show_home_page() -> None:
 
     st.sidebar.divider()
 
+    # Chat Sessions List
     sessions = chat_service.get_user_sessions(
         SessionManager.get_user_id()
     )
@@ -171,6 +176,9 @@ def show_home_page() -> None:
 
     st.sidebar.divider()
 
+    # ==========================================
+    # Long-Term Memory Panel
+    # ==========================================
     with st.sidebar.expander("🧠 Stored Long-Term Memories"):
         user_memories = chat_service.memory_service.get_all_user_memories(
             SessionManager.get_user_id()
@@ -191,64 +199,102 @@ def show_home_page() -> None:
                         st.rerun()
         else:
             st.caption("No long-term memories saved yet.")
+
+    # ==========================================
+    # Document RAG Management Panel
+    # ==========================================
+    with st.sidebar.expander("📄 Document RAG Management"):
+        user_id = SessionManager.get_user_id()
+        uploaded_file = st.file_uploader(
+            "Upload Document (PDF/DOCX)",
+            type=["pdf", "docx"],
+            key="rag_file_uploader",
+        )
+
+        if uploaded_file is not None:
+            if st.button("Index Document"):
+                try:
+                    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+                    clean_name = sanitize_filename(uploaded_file.name)
+                    file_path = UPLOADS_DIR / clean_name
+
+                    with open(file_path, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+
+                    doc_id = chat_service.rag_service.ingest_document(
+                        user_id=user_id,
+                        filename=clean_name,
+                        file_path=file_path,
+                    )
+                    st.success(f"Indexed '{clean_name}' successfully!")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"Failed to index document: {exc}")
+
+        st.divider()
+
+        # Display user's uploaded documents
+        docs = chat_service.rag_service.get_user_documents(user_id)
+        if docs:
+            st.caption("**Indexed Documents:**")
+            for doc in docs:
+                col1, col2 = st.columns([0.8, 0.2])
+                with col1:
+                    st.caption(f"📄 {doc['filename']}")
+                with col2:
+                    if st.button("🗑️", key=f"deldoc_{doc['id']}"):
+                        chat_service.rag_service.delete_document(
+                            user_id=user_id,
+                            document_id=doc["id"],
+                        )
+                        st.toast("Document deleted!")
+                        st.rerun()
+        else:
+            st.caption("No documents uploaded yet.")
+
     st.sidebar.divider()
 
+    # Logout Button
     if st.sidebar.button("Logout"):
         SessionManager.logout()
         st.rerun()
 
-        st.sidebar.divider()
+    # ==========================
+    # Main Area
+    # ==========================
 
-        if st.sidebar.button("Logout"):
-            SessionManager.logout()
-            st.rerun()
+    st.title("MemoryAI Chat")
 
-        # ==========================
-        # Main Area
-        # ==========================
-
-        st.title("MemoryAI Chat")
-
-        st.write(
-            f"Welcome, **{SessionManager.get_username()}**"
-        )
+    st.write(
+        f"Welcome, **{SessionManager.get_username()}**"
+    )
 
     st.divider()
 
-    # ==========================
     # Display chat history
-    # ==========================
-
     for message in st.session_state.chat_messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # ==========================
     # Chat Input
-    # ==========================
-
     prompt = st.chat_input("Ask MemoryAI...")
 
     if prompt:
-        
-        # Create chat session only once
         if st.session_state.current_chat_session_id is None:
-        
             session_id = chat_service.create_chat_session(
                 SessionManager.get_user_id(),
             )
-    
             st.session_state.current_chat_session_id = session_id
-    
+
         chat_service.save_user_message(
             session_id=st.session_state.current_chat_session_id,
             content=prompt,
         )
-    
+
         sessions = chat_service.get_user_sessions(
             SessionManager.get_user_id()
         )
-    
+
         current_session = next(
             (
                 session
@@ -257,20 +303,19 @@ def show_home_page() -> None:
             ),
             None,
         )
-    
+
         if (
             current_session is not None
             and current_session["title"] == DEFAULT_CHAT_TITLE
         ):
             title = prompt.strip()[:40]
-    
             chat_service.update_chat_title(
                 session_id=st.session_state.current_chat_session_id,
                 title=title,
             )
-    
+
         conversation = st.session_state.chat_messages
-    
+
         with st.chat_message("assistant"):
             user_id = st.session_state.user_id
             response = st.write_stream(
@@ -287,11 +332,11 @@ def show_home_page() -> None:
         )
 
         st.session_state.chat_messages.append(
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            )
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        )
 
         st.session_state.chat_messages.append(
             {
@@ -299,9 +344,8 @@ def show_home_page() -> None:
                 "content": response,
             }
         )
-    
-        st.rerun()
 
+        st.rerun()
 
 
 def main() -> None:

@@ -11,6 +11,6 @@ __pycache__/
 # Logs
 logs/
 
-# Database (optional for now)
+# Database 
 data/database/*.db
 repomix-output.xml

@@ -1,23 +1,27 @@
 """
-Business logic for chat sessions and messages.
+Business logic for chat sessions, messages, and LangGraph agent workflow execution.
 """
 
 from __future__ import annotations
 
+from typing import Iterator
+
+from langchain_core.messages import AIMessage, HumanMessage
+
 from config.constants import DEFAULT_CHAT_TITLE
 from database.chat_session_repository import ChatSessionRepository
 from database.message_repository import MessageRepository
-from prompts.system_prompts import SYSTEM_PROMPT
+from langgraph.nodes.graph import create_agent_graph
 from services.llm_service import LLMService
 from services.memory_service import MemoryService
 from services.rag_service import RAGService
 from utils.helpers import generate_uuid, get_current_timestamp
-from utils.message_converter import build_messages
+from utils.logger import logger
 
 
 class ChatService:
     """
-    Handles chat-related business logic.
+    Handles chat-related business logic and agent workflow orchestration via LangGraph.
     """
 
     def __init__(
@@ -28,7 +32,6 @@ class ChatService:
         memory_service: MemoryService | None = None,
         rag_service: RAGService | None = None,
     ) -> None:
-
         self.chat_session_repository = (
             chat_session_repository
             if chat_session_repository is not None
@@ -59,10 +62,16 @@ class ChatService:
             else RAGService()
         )
 
+        # Initialize the compiled LangGraph workflow state graph
+        self.agent_graph = create_agent_graph()
+
     def create_chat_session(
         self,
         user_id: str,
     ) -> str:
+        """
+        Creates a new chat session for a user.
+        """
         session_id = generate_uuid()
         timestamp = get_current_timestamp()
 
@@ -81,6 +90,9 @@ class ChatService:
         session_id: str,
         content: str,
     ) -> None:
+        """
+        Persists a user message in the database repository.
+        """
         self.message_repository.create_message(
             message_id=generate_uuid(),
             session_id=session_id,
@@ -89,72 +101,83 @@ class ChatService:
             timestamp=get_current_timestamp(),
         )
 
+    def _prepare_graph_messages(
+        self,
+        conversation: list[dict[str, str]],
+        user_message: str,
+    ) -> list[HumanMessage | AIMessage]:
+        """
+        Converts dictionary conversation history into LangChain message objects.
+        """
+        messages: list[HumanMessage | AIMessage] = []
+
+        for msg in conversation:
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+            if role == "user":
+                messages.append(HumanMessage(content=content))
+            elif role == "assistant":
+                messages.append(AIMessage(content=content))
+
+        messages.append(HumanMessage(content=user_message))
+        return messages
+
     def generate_ai_response(
         self,
         user_id: str,
         conversation: list[dict[str, str]],
         user_message: str,
     ) -> str:
-        memories = self.memory_service.retrieve_memories(
-            user_id=user_id,
-            query=user_message,
-            limit=5,
-        )
+        """
+        Generates an AI response by executing the LangGraph agent state machine.
+        """
+        messages = self._prepare_graph_messages(conversation, user_message)
 
-        doc_context = self.rag_service.retrieve_context(
-            user_id=user_id,
-            query=user_message,
-            top_k=4,
-        )
+        initial_state = {
+            "messages": messages,
+            "user_id": user_id,
+            "session_id": "",
+            "memories": [],
+            "doc_context": [],
+            "next_step": None,
+        }
 
-        messages = build_messages(
-            system_prompt=SYSTEM_PROMPT,
-            conversation=conversation,
-            user_message=user_message,
-            memories=memories,
-            doc_context=doc_context,
-        )
-
-        return self.llm_service.generate_response(messages)
+        try:
+            final_state = self.agent_graph.invoke(initial_state)
+            last_message = final_state["messages"][-1]
+            return str(last_message.content)
+        except Exception as error:
+            logger.exception("Error executing LangGraph workflow: %s", error)
+            return f"Error processing request: {error}"
 
     def stream_ai_response(
         self,
         user_id: str,
         conversation: list[dict[str, str]],
         user_message: str,
-    ):
-        self.memory_service.process_memory(
+    ) -> Iterator[str]:
+        """
+        Executes the LangGraph agent workflow and streams response tokens to Streamlit UI.
+        """
+        response_text = self.generate_ai_response(
             user_id=user_id,
-            user_message=user_message,
-        )
-
-        memories = self.memory_service.retrieve_memories(
-            user_id=user_id,
-            query=user_message,
-            limit=5,
-        )
-
-        doc_context = self.rag_service.retrieve_context(
-            user_id=user_id,
-            query=user_message,
-            top_k=4,
-        )
-
-        messages = build_messages(
-            system_prompt=SYSTEM_PROMPT,
             conversation=conversation,
             user_message=user_message,
-            memories=memories,
-            doc_context=doc_context,
         )
 
-        yield from self.llm_service.stream_response(messages)
+        # Stream chunked response for UI generator compatibility
+        words = response_text.split(" ")
+        for idx, word in enumerate(words):
+            yield word + (" " if idx < len(words) - 1 else "")
 
     def save_assistant_message(
         self,
         session_id: str,
         content: str,
     ) -> None:
+        """
+        Persists an assistant response message in the database repository.
+        """
         self.message_repository.create_message(
             message_id=generate_uuid(),
             session_id=session_id,
@@ -167,12 +190,18 @@ class ChatService:
         self,
         user_id: str,
     ) -> list:
+        """
+        Retrieves all chat sessions for a specific user.
+        """
         return self.chat_session_repository.get_user_sessions(user_id)
 
     def get_session_messages(
         self,
         session_id: str,
     ) -> list:
+        """
+        Retrieves all messages for a specific session.
+        """
         return self.message_repository.get_messages(session_id)
 
     def update_chat_title(
@@ -180,6 +209,9 @@ class ChatService:
         session_id: str,
         title: str,
     ) -> None:
+        """
+        Updates the title of a chat session.
+        """
         self.chat_session_repository.update_title(
             session_id=session_id,
             title=title,
